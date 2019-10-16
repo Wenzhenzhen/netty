@@ -25,8 +25,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Abstract base class for {@link EventExecutorGroup} implementations that handles their tasks with multiple threads at
- * the same time.
+ * 实现{@link EventExecutorGroup}的抽象基类
+ * 具有并行（多线程）调度EventExecutor的能力，也就是说每个EventExecutor都在自己的线程工作。
+ *
+ *
+ * 构造方法需要注意的地方：
+ * 1.该EventExecutorGroup会有nThreads个EventExecutor；
+ * 2.EventExecutorChooserFactory接口是用来选取下一个EventExecutor的，next方法中有体现；
+ * 3.Executor参数是给newChild方法创建EventExecutor用的，若没有提供Executor，则会使用默认的ThreadPerTaskExecutor；
+ * 4.构造方法中的{@link Executor}参数，是给newChild()方法创建EventExecutor用的，
+ *  若没有提供Executor，则会使用默认的ThreadPerTaskExecutor；
+ * 5.children = new EventExecutor[nThreads]; 这句代码构造了数组去引用本EventExecutorGroup所管理的EventExecutor；
+ * 6.for循环中的children[i] = newChild(executor, args); 利用抽象方法newChild初始化了数组的每个EventExecutor。
+ * 在后文会看到newChild方法的用处是给各个子类如NioEventLoopGroup、EpollEventLoopGroup和KQueueEventLoopGroup等
+ *  创建自己特色的EventLoop。
  */
 public abstract class MultithreadEventExecutorGroup extends AbstractEventExecutorGroup {
 
@@ -72,6 +84,9 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             throw new IllegalArgumentException(String.format("nThreads: %d (expected: > 0)", nThreads));
         }
 
+        // 构造方法中的Executor参数，是给newChild()方法创建EventExecutor用的，
+        // 若没有提供Executor，则会使用默认的ThreadPerTaskExecutor
+        // ThreadPerTaskExecutor 为每个任务都创建一个线程来执行
         if (executor == null) {
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
@@ -81,6 +96,12 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                /**
+                 * for循环中的children[i] = newChild(executor, args);
+                 * 利用抽象方法newChild初始化了数组的每个EventExecutor。
+                 * 在后文会看到newChild方法的用处是给各个子类如NioEventLoopGroup、EpollEventLoopGroup
+                 * 和KQueueEventLoopGroup等创建自己特色的EventLoop。
+                 **/
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {

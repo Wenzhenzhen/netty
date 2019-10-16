@@ -71,6 +71,7 @@ public final class EchoServer {
              });
 
             // Start the server.
+            // 通道注册开始的入口
             ChannelFuture f = b.bind(PORT).sync();
 
             // Wait until the server socket is closed.

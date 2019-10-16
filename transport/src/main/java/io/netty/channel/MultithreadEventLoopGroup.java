@@ -27,13 +27,16 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * Abstract base class for {@link EventLoopGroup} implementations that handles their tasks with multiple threads at
- * the same time.
+ * 实现了EventLoopGroup接口的register()方法：
+ * 构造函数均是在内部仅调用了父类对应的构造函数。
  */
 public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutorGroup implements EventLoopGroup {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(MultithreadEventLoopGroup.class);
 
+    /**
+     * 用于表示默认EventLoop线程数，若配置了io.netty.eventLoopThreads属性，则取该值，否则取默认值为可用处理器数的2倍；
+     **/
     private static final int DEFAULT_EVENT_LOOP_THREADS;
 
     static {
@@ -81,6 +84,9 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
     @Override
     protected abstract EventLoop newChild(Executor executor, Object... args) throws Exception;
 
+    /**
+     * 调用next()方法得到下一个EventLoop（即NioEventLoop），然后将通道注册到该NioEventLoop上。
+     **/
     @Override
     public ChannelFuture register(Channel channel) {
         return next().register(channel);

@@ -22,10 +22,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * The {@link EventExecutorGroup} is responsible for providing the {@link EventExecutor}'s to use
- * via its {@link #next()} method. Besides this, it is also responsible for handling their
- * life-cycle and allows shutting them down in a global fashion.
+ * @link EventExecutorGroup} 负责提供要使用的{@link EventExecutor}通过{@link #next()} 方法，
+ * 除此之外，还负责EventExecutor的生命周期并允许以全局方式关闭它们。
+ * EventExecutorGroup继承Java并发包的ScheduledExecutorService接口，
+ * 覆盖了原接口的方法，主要区别在于返回值换成了Netty自身的Future实现，另外新添加了几个方法。
  *
+ *
+ * 1.EventExecutorGroup接口继承了java.util.concurrent.ScheduledExecutorService接口，因此它可以调度执行task
+ * 2.EventExecutorGroup内部管理了n个EventExecutor，next()方法返回其中一个
+ * 3.EventExecutor也是EventExecutorGroup（的子类）
+ * ventExecutorGroup就像一个BOSS，每当有活儿的时候，就派一个小弟（EventExecutor）去干：
  */
 public interface EventExecutorGroup extends ScheduledExecutorService, Iterable<EventExecutor> {
 
@@ -66,6 +72,7 @@ public interface EventExecutorGroup extends ScheduledExecutorService, Iterable<E
 
     /**
      * @deprecated {@link #shutdownGracefully(long, long, TimeUnit)} or {@link #shutdownGracefully()} instead.
+     * 即将弃用
      */
     @Override
     @Deprecated

@@ -463,8 +463,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            //将一个 EventLoop 赋值给 AbstractChannel 内部的 eventLoop 字段,
+            // 到这里就完成了 EventLoop 与 Channel 的关联过程.
             AbstractChannel.this.eventLoop = eventLoop;
 
+            /**
+             *  eventLoop.execute. eventLoop 是一个 NioEventLoop 的实例,
+             *  而 NioEventLoop 没有实现 execute 方法, 因此调用的是 SingleThreadEventExecutor.execute()
+             *  {@link io.netty.util.concurrent.SingleThreadEventExecutor#execute(Runnable)}
+             **/
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
@@ -486,6 +493,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        //
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
@@ -494,6 +502,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 实际的注册方法
                 doRegister();
                 neverRegistered = false;
                 registered = true;

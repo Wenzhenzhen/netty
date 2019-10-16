@@ -15,7 +15,6 @@
  */
 package io.netty.channel.nio;
 
-import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.channel.DefaultSelectStrategyFactory;
 import io.netty.channel.EventLoopTaskQueueFactory;
@@ -32,11 +31,24 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link MultithreadEventLoopGroup} implementations which is used for NIO {@link Selector} based {@link Channel}s.
+ * {@link MultithreadEventLoopGroup} implementations which is used for NIO {@link Selector} based
+ * {@link Channel}s.
  */
+
+/**
+ * NioEventLoopGroup实际上就是个线程池+ Channel通道的注册方法
+ * NioEventLoopGroup在后台启动了n个NioEventLoop来处理Channel事件
+ * 每一个NioEventLoop负责处理m个Channel
+ * NioEventLoopGroup从NioEventLoop数组里挨个取出NioEventLoop来处理Channel
+ *
+ * executor可以在构造函数中传入，或者使用MultithreadEventExecutorGroup类默认创建的ThreadPerTaskExecutor；
+ */
+
 public class NioEventLoopGroup extends MultithreadEventLoopGroup {
 
     /**
+     * NioEventLoopGroup类的构造函数依然如其父类一样
+     *
      * Create a new instance using the default number of threads, the default {@link ThreadFactory} and
      * the {@link SelectorProvider} which is returned by {@link SelectorProvider#provider()}.
      */
@@ -131,6 +143,15 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
         }
     }
 
+    /**
+     * newChild()方法用于新建NioEventLoop实例：
+     *
+     * 可变参数args依次是SelectorProvider、SelectStrategyFactory和RejectedExecutionHandler，
+     * 默认值分别为SelectorProvider.provider()，
+     * DefaultSelectStrategyFactory.INSTANCE
+     * 和RejectedExecutionHandlers.reject()，
+     * 这些顺着NioEventLoopGroup类的构造函数找到父类MultithreadEventExecutorGroup的构造函数即可理解
+     **/
     @Override
     protected EventLoop newChild(Executor executor, Object... args) throws Exception {
         EventLoopTaskQueueFactory queueFactory = args.length == 4 ? (EventLoopTaskQueueFactory) args[3] : null;

@@ -172,6 +172,10 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
                 this, command, null, ScheduledFutureTask.deadlineNanos(unit.toNanos(delay))));
     }
 
+    /**
+     * 实现了Scheduled()方法,我们可以通过调用一个 NioEventLoop 实例的 schedule 方法来运行一些定时任务.
+     *
+     **/
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
         ObjectUtil.checkNotNull(callable, "callable");

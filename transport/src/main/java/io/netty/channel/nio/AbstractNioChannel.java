@@ -50,8 +50,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(AbstractNioChannel.class);
 
+    /**用于设置SelectableChannel参数和进行IO操作*/
     private final SelectableChannel ch;
+    /**表示就绪读，相当于代码JDK SelectKey的OP_READ*/
     protected final int readInterestOp;
+    /**一个通道可能有多个线程并发读，因此需要volatile保证可见性*/
     volatile SelectionKey selectionKey;
     boolean readPending;
     private final Runnable clearReadPendingRunnable = new Runnable() {
@@ -81,6 +84,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         this.ch = ch;
         this.readInterestOp = readInterestOp;
         try {
+            //通道被设置为非阻塞
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
@@ -372,17 +376,31 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return loop instanceof NioEventLoop;
     }
 
-    @Override
-    protected void doRegister() throws Exception {
+  /**
+   * 从下面的doRegister()方法源码中可知，通过局部变量selected来标识注册操作是否成功，
+   * 然后调用SelectableChannel的register方法将当前的channel注册到EventLoop的多路复用器上。
+   * 我们知道，当我们注册channel到具体的多路复用选择器上的时候是需要指定监听的网络操作位来表示
+   * Channel对哪几种网络事件感兴趣。
+   * 具体的定义在java.nio.channels.SelectionKey类中可以看到：OP_READ,OP_WRITE ,OP_CONNECT ,OP_ACCEPT
+   */
+  @Override
+  protected void doRegister() throws Exception {
+        //标识注册是否成功
         boolean selected = false;
         for (;;) {
             try {
+                //调用JDK的NIO中的SelectableChannel的register方法，
+                //将当前的channel注册到EventLoop的多路复用器上
+                //ops:0 表示在注册时对任何事件都不感兴趣，仅仅完成注册操作。
+                //不管是NioServerSocketChannel还是NioSocketChannel被初始化时都会执行到父类AbstractNioChannel的doRegister方法
+                //att: this指针将AbstractNioChannel子类的自身对象注册到SelectionKey，
+                // 如果当前Channel注册成功，则返回selectionKey,通过selectionKey的attachment()方法可以从多路复用器中获取Channel对象。
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {
                 if (!selected) {
-                    // Force the Selector to select now as the "canceled" SelectionKey may still be
-                    // cached and not removed because no Select.select(..) operation was called yet.
+                    //当当前注册的selectionKey已经被取消，则抛出异常并处理，
+                    //eventLoop().selectNow()方法：将已经取消的selectionKey从多路复用器中删除
                     eventLoop().selectNow();
                     selected = true;
                 } else {
@@ -399,6 +417,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         eventLoop().cancel(selectionKey());
     }
 
+    //AbstractNioChannel#doBeginRead()在此方法中改变通道感兴趣的值
     @Override
     protected void doBeginRead() throws Exception {
         // Channel.read() or ChannelHandlerContext.read() was called
@@ -408,7 +427,6 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
 
         readPending = true;
-
         final int interestOps = selectionKey.interestOps();
         if ((interestOps & readInterestOp) == 0) {
             selectionKey.interestOps(interestOps | readInterestOp);

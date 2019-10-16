@@ -80,8 +80,13 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             AtomicReferenceFieldUpdater.newUpdater(
                     SingleThreadEventExecutor.class, ThreadProperties.class, "threadProperties");
 
+    /**
+     * 任务队列：实现了任务队列的功能, 通过它, 我们可以调用一个 NioEventLoop 实例的 execute 方法来向任务队列中添加一个task,
+     * 并由 NioEventLoop 进行调度执行
+     **/
     private final Queue<Runnable> taskQueue;
 
+    /**代表了与 SingleThreadEventExecutor 关联的本地线程.*/
     private volatile Thread thread;
     @SuppressWarnings("unused")
     private volatile ThreadProperties threadProperties;
@@ -97,6 +102,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     private long lastExecutionTime;
 
     @SuppressWarnings({ "FieldMayBeFinal", "unused" })
+    /**标识当前线程的状态*/
     private volatile int state = ST_NOT_STARTED;
 
     private volatile long gracefulShutdownQuietPeriod;
@@ -115,6 +121,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      */
     protected SingleThreadEventExecutor(
             EventExecutorGroup parent, ThreadFactory threadFactory, boolean addTaskWakesUp) {
+
+        //ThreadPerTaskExecutor 为每个任务都创建一个线程来执行
         this(parent, new ThreadPerTaskExecutor(threadFactory), addTaskWakesUp);
     }
 
@@ -138,7 +146,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      * Create a new instance
      *
      * @param parent            the {@link EventExecutorGroup} which is the parent of this instance and belongs to it
-     * @param executor          the {@link Executor} which will be used for executing
+     * @param executor          the {@link Executor} 任务执行器，用来执行任务
      * @param addTaskWakesUp    {@code true} if and only if invocation of {@link #addTask(Runnable)} will wake up the
      *                          executor thread
      */
@@ -153,7 +161,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      * @param executor          the {@link Executor} which will be used for executing
      * @param addTaskWakesUp    {@code true} if and only if invocation of {@link #addTask(Runnable)} will wake up the
      *                          executor thread
-     * @param maxPendingTasks   the maximum number of pending tasks before new tasks will be rejected.
+     * @param maxPendingTasks   在拒绝新任务之前的挂起任务的最大数目。
      * @param rejectedHandler   the {@link RejectedExecutionHandler} to use.
      */
     protected SingleThreadEventExecutor(EventExecutorGroup parent, Executor executor,
@@ -876,15 +884,23 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return isTerminated();
     }
 
+    /**
+     * SingleThreadEventExecutor.execute()此方法在Channel 注册的代码,
+     * {@link AbstractChannel#AbstractUnsafe#register()} 中调用
+     **/
     @Override
     public void execute(Runnable task) {
         if (task == null) {
             throw new NullPointerException("task");
         }
 
+        // 判断是否同一个线程，即是否已进行事件循环处理
         boolean inEventLoop = inEventLoop();
         addTask(task);
+
         if (!inEventLoop) {
+            // 调用 startThread 方法, 启动EventLoop 线程.
+            // 执行EventLoop 的run()方法
             startThread();
             if (isShutdown()) {
                 boolean reject = false;
@@ -1000,6 +1016,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private static final long SCHEDULE_PURGE_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
+    // 启动线程的方法
     private void startThread() {
         if (state == ST_NOT_STARTED) {
             if (STATE_UPDATER.compareAndSet(this, ST_NOT_STARTED, ST_STARTED)) {
@@ -1035,10 +1052,16 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     private void doStartThread() {
+        //assert  [boolean表达式]：如果[boolean表达式]为true，则程序继续执行。
+        // 如果为false，则程序抛出AssertionError，并终止执行。
         assert thread == null;
+
+        //将任务提交到线程池中，此任务所做的事情主要就是调用 SingleThreadEventExecutor.this.run() 方法,
+        // NioEventLoop 实现了这个方法, 因此根据多态性, 其实调用的是 NioEventLoop.run() 方法.
         executor.execute(new Runnable() {
             @Override
             public void run() {
+                //将当前运行此任务的线程绑定到thread变量中
                 thread = Thread.currentThread();
                 if (interrupted) {
                     thread.interrupt();
@@ -1052,6 +1075,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 } catch (Throwable t) {
                     logger.warn("Unexpected exception from an event executor: ", t);
                 } finally {
+                    // 清理代码
                     for (;;) {
                         int oldState = state;
                         if (oldState >= ST_SHUTTING_DOWN || STATE_UPDATER.compareAndSet(

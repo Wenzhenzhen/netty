@@ -53,12 +53,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link SingleThreadEventLoop} implementation which register the {@link Channel}'s to a
  * {@link Selector} and so does the multi-plexing of these in the event loop.
  *
+ *
+ *  继承链如下：
+ * NioEventLoop -> SingleThreadEventLoop -> SingleThreadEventExecutor -> AbstractScheduledEventExecutor
+ *
+ * 1. SingleThreadEventExecutor 是 Netty 中对本地线程的抽象,它内部有一个 Thread thread 属性, 存储了一个本地 Java 线程.
+ *    因此我们可以认为, 一个 NioEventLoop 其实和一个特定的线程绑定, 并且在其生命周期内, 绑定的线程都不会再改变.
+ *
+ * 2. NioEventLoop 肩负着两种任务, 第一个是作为 IO 线程, 执行与 Channel 相关的 IO 操作,
+ *    包括 调用 select 等待就绪的IO 事件、读写数据与数据的处理等; 而第二个任务是作为任务队列,
+ *    执行 taskQueue 中的任务, 例如用户调用 eventLoop.schedule 提交的定时任务也是这个线程执行的.
+ *
+ * 3. 在 AbstractScheduledEventExecutor 中, Netty 实现了 NioEventLoop 的 schedule 功能,
+ *    即我们可以通过调用一个 NioEventLoop 实例的 schedule 方法来运行一些定时任务.
+ *
+ * 4. SingleThreadEventLoop 中, 又实现了任务队列的功能, 通过它,
+ *    我们可以调用一个 NioEventLoop 实例的 execute 方法来向任务队列中添加一个 task, 并由 NioEventLoop 进行调度执行
  */
 public final class NioEventLoop extends SingleThreadEventLoop {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(NioEventLoop.class);
 
-    private static final int CLEANUP_INTERVAL = 256; // XXX Hard-coded value, but won't need customization.
+    // XXX Hard-coded value, but won't need customization.
+    private static final int CLEANUP_INTERVAL = 256;
 
     private static final boolean DISABLE_KEY_SET_OPTIMIZATION =
             SystemPropertyUtil.getBoolean("io.netty.noKeySetOptimization", false);
@@ -69,6 +86,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     private final IntSupplier selectNowSupplier = new IntSupplier() {
         @Override
         public int get() throws Exception {
+            //selector.selectNow() 方法会检查当前是否有就绪的 IO 事件。如果有, 则返回就绪 IO 事件的个数；如果没有, 则返回0。
             return selectNow();
         }
     };
@@ -441,10 +459,16 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * 总结一句话, 当 EventLoop.execute 第一次被调用时, 就会触发 startThread() 的调用,
+     * 进而导致了 EventLoop 所对应的 Java 线程的启动.run()方法开始执行,NioEventLoop 事件轮询在这个线程中进行
+     *
+     **/
     @Override
     protected void run() {
         for (;;) {
             try {
+                //第一步：查询IO就绪
                 try {
                     switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
                     case SelectStrategy.CONTINUE:
@@ -498,14 +522,17 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     continue;
                 }
 
+                //第二步，处理就绪事件
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
                 final int ioRatio = this.ioRatio;
                 if (ioRatio == 100) {
                     try {
+                        // 调用processSelectedKeys() 分派就绪事件
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 运行 taskQueue 中的任务。
                         runAllTasks();
                     }
                 } else {
@@ -622,6 +649,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * 就绪事件的处理
+     * */
     private void processSelectedKeysOptimized() {
         for (int i = 0; i < selectedKeys.size; ++i) {
             final SelectionKey k = selectedKeys.keys[i];
@@ -780,8 +810,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     int selectNow() throws IOException {
         try {
+            //selector.selectNow() 方法会检查当前是否有就绪的 IO 事件。如果有, 则返回就绪 IO 事件的个数；如果没有, 则返回0。
+            //selector.selectNow()方法立即返回，非阻塞
             return selector.selectNow();
         } finally {
+            // 检查 wakenUp 变量是否为 true，当为 true 时, 调用 selector.wakeup() 唤醒 select() 的阻塞调用。
             // restore wakeup state if needed
             if (wakenUp.get()) {
                 selector.wakeup();
