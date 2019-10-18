@@ -78,13 +78,18 @@ public abstract class AbstractNioChannel extends AbstractChannel {
      * @param parent            the parent {@link Channel} by which this instance was created. May be {@code null}
      * @param ch                the underlying {@link SelectableChannel} on which it operates
      * @param readInterestOp    the ops to set to receive data from the {@link SelectableChannel}
+     * 保存客户端注册的读事件OP_READ、channel为成员变量赋初始值，以及设置阻塞模式为非阻塞。
      */
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
+        //调用父类构造方法，设置该客户端Channel对应的服务端Channel，以及Channel的两大组件
+        //unsafe和pipeline
         super(parent);
+        //保存客户端通道SocketChannel为成员变量
         this.ch = ch;
+        //保存感兴趣的读事件为成员变量
         this.readInterestOp = readInterestOp;
         try {
-            //通道被设置为非阻塞
+            //通道设置为非阻塞
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {

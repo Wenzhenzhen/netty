@@ -16,6 +16,8 @@
 package io.netty.channel;
 
 import io.netty.channel.Channel.Unsafe;
+import io.netty.channel.nio.AbstractNioChannel;
+import io.netty.channel.nio.AbstractNioMessageChannel;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.EventExecutor;
@@ -1011,8 +1013,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return tail.deregister(promise);
     }
 
+    /**
+     * 读事件将从尾部的TailContent#read()被触发，从而依次执行ctx.read()，
+     * 从尾部开始，每个outboundHandler的read()事件都被触发。直到头部。
+     *
+     **/
     @Override
     public final ChannelPipeline read() {
+        /**{@link AbstractChannelHandlerContext#read()} */
         tail.read();
         return this;
     }
@@ -1317,6 +1325,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     final class HeadContext extends AbstractChannelHandlerContext
             implements ChannelOutboundHandler, ChannelInboundHandler {
 
+        //保存Channel上的unsafe实例
         private final Unsafe unsafe;
 
         HeadContext(DefaultChannelPipeline pipeline) {
@@ -1405,8 +1414,24 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             }
         }
 
+        /**
+         * 1. 从pipeline的头部开始，即DefaultChannelPipeline.HeadContext#channelActive()从而触发了readIfIsAutoRead()
+         * 2. 读事件将从尾部的TailContent#read()被触发，从而依次执行ctx.read()，从尾部开始，每个outboundHandler的read()事件都被触发。直到头部。
+         * 3. 进入头部HeadContext#read()，并且最终更改了selectionKey,向selector注册了读事件
+         *    --> {@link DefaultChannelPipeline.HeadContext#read(ChannelHandlerContext)}
+         *    -->{@link AbstractChannel.AbstractUnsafe#beginRead()}
+         *    -->{@link AbstractNioMessageChannel#doBeginRead()}
+         *    -->{@link AbstractNioChannel#doBeginRead()}
+         *
+         * *  最后在AbstractNioChannel#doBeginRead()在此方法中更改了selectionKey,向selector注册了读事件
+         */
         @Override
         public void channelActive(ChannelHandlerContext ctx) {
+            /**
+             * 将msg通过context再一次发射出去。
+             * {@link HeadContext#fireChannelActive()}  }
+             *
+             * */
             ctx.fireChannelActive();
 
             readIfIsAutoRead();
@@ -1430,7 +1455,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
 
         private void readIfIsAutoRead() {
+            //isAutoRead()默认是true，channelhandlercontext.read()将被自动调用
             if (channel.config().isAutoRead()) {
+                /**channel.read()
+                 *  ->{@link AbstractChannel#read()}
+                 *  ->{@link DefaultChannelPipeline#read()}
+                 *  读事件将从尾部的TailContent#read()被触发，从而依次执行ctx.read()，
+                 *  从尾部开始，每个outboundHandler的read()事件都被触发。直到头部。
+                 * */
                 channel.read();
             }
         }

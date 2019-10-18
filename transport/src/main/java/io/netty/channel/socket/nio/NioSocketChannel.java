@@ -43,6 +43,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -98,11 +99,24 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
     /**
      * Create a new instance
      *
-     * @param parent    the {@link Channel} which created this instance or {@code null} if it was created by the user
-     * @param socket    the {@link SocketChannel} which will be used
+     * @param parent    创建此通道的服务端Channel，或是null若此通道为用户创建
+     * @param socket    底层Noi的通道{@link SocketChannel}
+     *  在其父类 构造函数{@link io.netty.channel.nio.AbstractNioChannel#AbstractNioChannel(Channel, SelectableChannel, int)}中
+     *      主要做了三件事情：
+     *                  1.为客户端通道注册读事件OP_READ
+     *                  2.为其成员SelectableChannel ch 变量赋初始值为socket
+     *                  3.设置阻塞模式为非阻塞。
+     *  AbstractNioChannel的构造器中调用了其父类{@link io.netty.channel.AbstractChannel#AbstractChannel(Channel)}的构造器
+     *      主要是设置：1.该客户端channel对应的服务端channel，channel的id
+     *                  2.创建channel的两大组件unsafe和pipeline
+     *                  注意：客户端Unsafe为NioSocketChannel的父类{@link AbstractNioByteChannel#newUnsafe()}创建的NioByteUnsafe
      */
     public NioSocketChannel(Channel parent, SocketChannel socket) {
+        //调用父类构造方法
         super(parent, socket);
+        //实例化一个NioSocketChannelConfig
+        //1.保存javaSocket
+        //2.并且通过setTcpNoDelay(true);禁止了tcp的Nagle算法，目的是为了尽量让小的数据包整合成大的发送出去,降低延时.
         config = new NioSocketChannelConfig(this, socket.socket());
     }
 

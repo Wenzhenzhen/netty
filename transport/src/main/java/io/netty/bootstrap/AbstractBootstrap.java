@@ -265,7 +265,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
 
         if (regFuture.isDone()) {
-            // At this point we know that the registration was complete and successful.
+            // 通道注册成功
             ChannelPromise promise = channel.newPromise();
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
@@ -311,7 +311,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
 
         //config().group() 返回bootstrap中配置的Boss线程组
-        //向bootstrap中配置的Boss线程组注册通道
+        //向bootstrap中配置的Boss线程组中使用next()方法选出一个NioEventLoop并向其注册通道
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

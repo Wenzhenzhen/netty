@@ -25,6 +25,10 @@ final class DefaultSelectStrategy implements SelectStrategy {
 
     private DefaultSelectStrategy() { }
 
+    /**
+     * 如果还有task待执行则先执行selectNow，selectNow是立即返回的，不是阻塞等待
+     *  如果没有待执行的task则执行select，有可能是阻塞等待IO事件
+     **/
     @Override
     public int calculateStrategy(IntSupplier selectSupplier, boolean hasTasks) throws Exception {
         return hasTasks ? selectSupplier.get() : SelectStrategy.SELECT;

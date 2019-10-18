@@ -546,9 +546,11 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     @UnstableApi
     protected void afterRunningAllTasks() { }
 
-    /**
-     * Returns the amount of time left until the scheduled task with the closest dead line is executed.
-     */
+  /**
+   * Returns the amount of time left until the scheduled task with the closest dead line is
+   * executed.
+   * 返回在执行 最近截止时间的定时任务之前 剩余的时间量。
+   */
     protected long delayNanos(long currentTimeNanos) {
         ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
         if (scheduledTask == null) {
@@ -886,7 +888,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     /**
      * SingleThreadEventExecutor.execute()此方法在Channel 注册的代码,
-     * {@link AbstractChannel#AbstractUnsafe#register()} 中调用
+     * {@link AbstractChannel.AbstractUnsafe#register()} 中调用
      **/
     @Override
     public void execute(Runnable task) {

@@ -643,10 +643,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
-    /**
-     * 就绪事件的处理
-     * */
-    private void processSelectedKeysOptimized() {
+      /**
+       * 就绪事件的处理：
+       * 遍历SelectionKey数组获取SelectionKey的attachment即NioChannel;
+       * SelectionKey合法获取SelectionKey的io事件进行事件处理
+       */
+      private void processSelectedKeysOptimized() {
         for (int i = 0; i < selectedKeys.size; ++i) {
             final SelectionKey k = selectedKeys.keys[i];
             // null out entry in the array to allow to have it GC'ed once the Channel close
@@ -674,6 +676,14 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * unsafe是在Channel创建过程的时候，调用了父类{@link io.netty.channel.AbstractChannel#AbstractChannel(Channel)}的构造方法，
+     * 和pipeline一起初始化的。
+     * 服务端通道在引导类启动时创建
+     * 服务端Unsafe为NioServerSocketChannel的父类{@link AbstractNioMessageChannel#newUnsafe()}创建的NioMessageUnsafe
+     *
+     * 客户端Unsafe为NioSocketChannel的父类{@link AbstractNioByteChannel#newUnsafe()}创建的NioByteUnsafe
+     * */
     private void processSelectedKey(SelectionKey k, AbstractNioChannel ch) {
         final AbstractNioChannel.NioUnsafe unsafe = ch.unsafe();
         if (!k.isValid()) {
@@ -718,9 +728,18 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 ch.unsafe().forceFlush();
             }
 
-            // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
-            // to a spin loop
+            // 还要检查readops是否为0，以解决可能导致自旋循环的jdk错误。
+            // 如果当前NioEventLoop是workGroup 则可能是OP_READ，bossGroup是OP_ACCEPT
+            // OP_READ和OP_ACCEPT都会进入到这里
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
+
+                /**
+                 * 新连接接入以及读事件处理入口
+                 * OP_ACCEPT事件的unsafe是服务端的unsafe
+                 * {@link AbstractNioMessageChannel.NioMessageUnsafe#read()}
+                 * OP_READ事件的unsafe是客户端的unsafe
+                 * {@link AbstractNioByteChannel.NioByteUnsafe#read()}
+                 * */
                 unsafe.read();
             }
         } catch (CancelledKeyException ignored) {

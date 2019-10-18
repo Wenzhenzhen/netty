@@ -15,19 +15,9 @@
  */
 package io.netty.bootstrap;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
+import io.netty.channel.*;
 import io.netty.util.AttributeKey;
+import io.netty.util.concurrent.EventExecutorGroup;
 import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -121,36 +111,82 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         return this;
     }
 
+    /**
+     * 在服务端启动时参数的配置。
+     * childGroup,childOptions,childAttrs,childHandler等参数被进行了单独配置。作为参数和ServerBootstrapAcceptor一起，
+     * 被当作一个特殊的handle，封装到pipeline中。
+     * ServerBootstrapAcceptor中的eventLoop为workGroup。
+     * */
     @Override
     void init(Channel channel) {
+        /**配置{@link AbstractBootstrap#options}*/
         setChannelOptions(channel, options0().entrySet().toArray(newOptionArray(0)), logger);
+        /**配置{@link AbstractBootstrap#attrs}*/
         setAttributes(channel, attrs0().entrySet().toArray(newAttrArray(0)));
 
+        //配置Pipeline
         ChannelPipeline p = channel.pipeline();
 
+        //获取ServerBootstrapAcceptor配置参数
+        //childGroup为workGroup
         final EventLoopGroup currentChildGroup = childGroup;
         final ChannelHandler currentChildHandler = childHandler;
         final Entry<ChannelOption<?>, Object>[] currentChildOptions =
                 childOptions.entrySet().toArray(newOptionArray(0));
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = childAttrs.entrySet().toArray(newAttrArray(0));
 
-        p.addLast(new ChannelInitializer<Channel>() {
-            @Override
-            public void initChannel(final Channel ch) {
-                final ChannelPipeline pipeline = ch.pipeline();
-                ChannelHandler handler = config.handler();
-                if (handler != null) {
-                    pipeline.addLast(handler);
-                }
-
-                ch.eventLoop().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        pipeline.addLast(new ServerBootstrapAcceptor(
-                                ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
-                    }
-                });
+    // 它提供了一种在{@link eventloop}注册后初始化{@link channel}的简单方法。
+    /**
+     * 问题：ChannelInitializer到底什么时候被触发？
+     * addLast()方法调用链
+     * ->{@link DefaultChannelPipeline#addLast(ChannelHandler...)}
+     * ->{@link DefaultChannelPipeline#addLast(EventExecutorGroup, ChannelHandler...)}
+     * -> 循环调用 {@link DefaultChannelPipeline#addLast(EventExecutorGroup, String, ChannelHandler)}
+     * -> {@link DefaultChannelPipeline#addLast0(AbstractChannelHandlerContext)}将此Handler添加到链表尾部
+     *     handler加入到链表尾部（ChannelPipeline）之后，开始进入Handler的handlerAdded()方法入口
+     *    {@link DefaultChannelPipeline#callHandlerAdded0(AbstractChannelHandlerContext)}
+     *    ->{@link AbstractChannelHandlerContext#callHandlerAdded()}
+     *    执行刚刚加入的Handler的handlerAdded方法
+     *    ->{@link ChannelHandler#handlerAdded(ChannelHandlerContext)}
+     *    答：至此{@link ChannelInitializer#handlerAdded(ChannelHandlerContext)}方法被触发
+     * */
+    p.addLast(
+        new ChannelInitializer<Channel>() {
+          @Override
+          public void initChannel(final Channel ch) {
+            /**
+             * 这里是服务端的Pipeline 整个bossGroup对应的pipeline结构：
+             * ->头{@link io.netty.channel.DefaultChannelPipeline.HeadContext}
+             * -> {@link ServerBootstrap.ServerBootstrapAcceptor} 封装客户端channel相关属性
+             * ->尾{@link io.netty.channel.DefaultChannelPipeline.TailContext}
+             */
+            final ChannelPipeline pipeline = ch.pipeline();
+            ChannelHandler handler = config.handler();
+            if (handler != null) {
+              pipeline.addLast(handler);
             }
+
+            ch.eventLoop()
+                .execute(
+                    new Runnable() {
+                      @Override
+                      public void run() {
+                        /**
+                         * 配置ServerBootstrapAcceptor,作为Handle紧跟HeadContext；
+                         * 当新连接接入的时候AbstractNioMessageChannel.NioMessageUnsafe#read()方法被调用，
+                         * 最终调用fireChannelRead()，方法来触发下一个Handler的channelRead方法。
+                         * 而这个Handler正是ServerBootstrapAcceptor
+                         */
+                        pipeline.addLast(
+                            new ServerBootstrapAcceptor(
+                                ch,
+                                currentChildGroup,
+                                currentChildHandler,
+                                currentChildOptions,
+                                currentChildAttrs));
+                      }
+                    });
+          }
         });
     }
 
@@ -196,17 +232,47 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             };
         }
 
+        /**
+         * 当新的连接 接入的时候AbstractNioMessageChannel.NioMessageUnsafe#read()方法被调用，
+         * 最终调用fireChannelRead()，方法来触发下一个Handler的channelRead方法。
+         * 而这个Handler正是ServerBootstrapAcceptor，它也是ChannelInboundHandler
+         * 其中channelRead主要做了以下几件事。
+         * 1.为客户端channel的pipeline添加childHandler
+         * 2.设置客户端TCP相关属性childOptions和自定义属性childAttrs
+         * 3.workGroup选择NioEventLoop并注册Selector，注册流程和服务端Channel一致
+         *
+         *
+         * 4.向Selector注册读事件：触发了通道激活事件;一个入站事件的完整那个流程
+         **/
         @Override
         @SuppressWarnings("unchecked")
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            //该channel为客户端接入时创建的channel
             final Channel child = (Channel) msg;
 
+            //添加childHandle
             child.pipeline().addLast(childHandler);
 
+            //设置TCP相关属性：childOptions
             setChannelOptions(child, childOptions, logger);
+            //设置自定义属性:childAttrs
             setAttributes(child, childAttrs);
 
             try {
+                /**
+                 * 从childGroup中选择NioEventLoop并注册Selector：
+                 * 流程：
+                 * 1. 在{@link io.netty.channel.MultithreadEventLoopGroup#register(Channel)}中，
+                 *    调用next()方法得到下一个EventLoop（即NioEventLoop），然后将通道注册到该NioEventLoop上。
+                 * 2. {@link io.netty.channel.SingleThreadEventLoop#register(Channel)}，包装Channel并转发到下一个方法
+                 * 3. {@link io.netty.channel.AbstractChannel.AbstractUnsafe#register(EventLoop, ChannelPromise)}
+                 *      在这个方法中关联 EventLoop 与 Channel，调用register0()将Channel注册到EventLoop
+                 * 4. {@link AbstractChannel.AbstractUnsafe#register0(ChannelPromise)}
+                 *      a.调用实际注册方法doRegister()完成注册
+                 *      b.注册完成，fire通道激活事件;调用HeadContent的fireChannelActive()方法
+                 *      c.在通道激活事件之后，触发注册OP_READ 的操作
+                 * 5. {@link io.netty.channel.nio.AbstractNioChannel#doRegister()}
+                 * */
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {

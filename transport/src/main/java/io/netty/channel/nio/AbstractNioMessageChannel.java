@@ -57,13 +57,24 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
 
     private final class NioMessageUnsafe extends AbstractNioUnsafe {
 
+        /**临时存储读到的连接*/
         private final List<Object> readBuf = new ArrayList<Object>();
 
-        @Override
-        public void read() {
+    /**
+     * read 的主要操作：
+     * 1.循环调用jdk底层的代码创建channel，并用netty的NioSocketChannel包装起来，代表新连接成功接入一个通道。
+     * 2.将所有获取到的channel存储到一个容器当中，检测接入的连接数，默认是一次接16个连接
+     * 3.遍历容器中的channel,依次调用方法fireChannelRead，
+     * 4.fireChannelReadComplete，fireExceptionCaught来触发对应的传播事件。即分派给最终的Handler
+     */
+    @Override
+    public void read() {
             assert eventLoop().inEventLoop();
+            // 获取连接通道的相关配置
             final ChannelConfig config = config();
             final ChannelPipeline pipeline = pipeline();
+
+            //服务端接入速率处理器
             final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
             allocHandle.reset(config);
 
@@ -71,7 +82,12 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             Throwable exception = null;
             try {
                 try {
+                    /** while循环调用
+                     * {@link io.netty.channel.socket.nio.NioServerSocketChannel#doReadMessages(List)}
+                     * 创建新连接对象
+                     * */
                     do {
+                        //获取jdk底层的channel,并加入readBuf容器
                         int localRead = doReadMessages(readBuf);
                         if (localRead == 0) {
                             break;
@@ -81,24 +97,28 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                             break;
                         }
 
+                        //把读到的连接做一个累加totalMessages，默认最多累计读取16个连接，结束循环
                         allocHandle.incMessagesRead(localRead);
                     } while (allocHandle.continueReading());
                 } catch (Throwable t) {
                     exception = t;
                 }
 
+                 // 触发readBuf容器内所有的传播事件:ChannelRead 读事件
                 int size = readBuf.size();
                 for (int i = 0; i < size; i ++) {
                     readPending = false;
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
+                //清空容器
                 readBuf.clear();
                 allocHandle.readComplete();
+                //触发传播事件：ChannelReadComplete，所有的读事件完成
                 pipeline.fireChannelReadComplete();
 
                 if (exception != null) {
                     closed = closeOnReadError(exception);
-
+                    //触发传播事件：exceptionCaught，触发异常
                     pipeline.fireExceptionCaught(exception);
                 }
 
@@ -187,9 +207,7 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
         return true;
     }
 
-    /**
-     * Read messages into the given array and return the amount which was read.
-     */
+    /** 将消息读入给定数组并返回已读的数量。 */
     protected abstract int doReadMessages(List<Object> buf) throws Exception;
 
     /**
