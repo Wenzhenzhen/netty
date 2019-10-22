@@ -174,6 +174,8 @@ import java.lang.annotation.Target;
  * {@link ChannelPipeline} to find out more about inbound and outbound operations,
  * what fundamental differences they have, how they flow in a  pipeline,  and how to handle
  * the operation in your application.
+ *
+ * 公共操作：Handler添加完成，移除完成，发生异常时的调用方法
  */
 public interface ChannelHandler {
 

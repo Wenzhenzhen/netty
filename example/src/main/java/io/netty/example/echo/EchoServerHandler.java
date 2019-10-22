@@ -18,6 +18,7 @@ package io.netty.example.echo;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * Handler implementation for the echo server.
@@ -27,7 +28,11 @@ public class EchoServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        //出站入口
         ctx.write(msg);
+        //负责显式的释放与池化 ByteBuf实例相关的内存，Netty为此提供了一个实用方法
+        //丢弃已接受的消息,谨慎使用
+//        ReferenceCountUtil.release(msg);
     }
 
     @Override

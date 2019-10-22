@@ -824,6 +824,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return buf.toString();
     }
 
+    /********************************** ChannelInboundInvoker 接口中的方法实现*************************************/
+    /**入站Handler从head开始*/
     @Override
     public final ChannelPipeline fireChannelRegistered() {
         AbstractChannelHandlerContext.invokeChannelRegistered(head);
@@ -946,6 +948,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /************************************ChannelOutboundInvoker 接口中方法的实现****************************************/
+    /**出站流程的起点是TailContext，终点是HeadContext，流水线执行的方向是从尾到头。
+     * 只有outbound 类型的 Context 参与。inbound 类型的上下文Context不参与（TailContext另说）*/
     @Override
     public final ChannelFuture bind(SocketAddress localAddress) {
         return tail.bind(localAddress);
@@ -1069,7 +1074,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     public final ChannelPromise voidPromise() {
         return voidPromise;
     }
-
+    /************************************ChannelOutboundInvoker 接口中方法的实现结束****************************************/
     private void checkDuplicateName(String name) {
         if (context0(name) != null) {
             throw new IllegalArgumentException("Duplicate handler name: " + name);

@@ -53,6 +53,9 @@ import static io.netty.channel.ChannelHandlerMask.MASK_USER_EVENT_TRIGGERED;
 import static io.netty.channel.ChannelHandlerMask.MASK_WRITE;
 import static io.netty.channel.ChannelHandlerMask.mask;
 
+/**
+ * 出站和入站，复用了同一个上下文Context基类。它就是AbstractChannelHandlerContext。
+ **/
 abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, ResourceLeakHint {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractChannelHandlerContext.class);
@@ -83,6 +86,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private final DefaultChannelPipeline pipeline;
     private final String name;
     private final boolean ordered;
+
+    //executionMask表示Handler具体处理的事件类型
     private final int executionMask;
 
     // Will be set to null if no child executor should be used, otherwise it will be set to the
@@ -96,8 +101,21 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     private volatile int handlerState = INIT;
 
-    AbstractChannelHandlerContext(DefaultChannelPipeline pipeline, EventExecutor executor,
-                                  String name, Class<? extends ChannelHandler> handlerClass) {
+  /**
+   * 出站和入站，复用了同一个上下文Context基类。它就是AbstractChannelHandlerContext。
+   * 问题：如何区别Inbound和Outbound呢？
+   *       答：在旧版本中，Netty使用instanceof的方式来判断如果是ChannelInbound的子类，就是Inbound，
+   *       如果是ChannelOutbound的子类，就是Outbound。
+   *       在新版本中，Netty使用位运算来判断，并且粒度更细，判断粒度从inbound和outbound级别到事件级别，
+   *       更加突出了事件驱动的思想，在配置Handler的时候也更加的灵活了，不需要去重复经过不关心某个事件的Handler。
+   *       传播粒度的定义：{@link ChannelHandlerMask}
+   *       executionMask表示Handler具体处理的事件类型，在构造方法中计算并赋值
+   */
+  AbstractChannelHandlerContext(
+      DefaultChannelPipeline pipeline,
+      EventExecutor executor,
+      String name,
+      Class<? extends ChannelHandler> handlerClass) {
         this.name = ObjectUtil.checkNotNull(name, "name");
         this.pipeline = pipeline;
         this.executor = executor;
@@ -135,6 +153,10 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return name;
     }
 
+    /**
+     * {@link ChannelHandlerContext}接口中copy了{@link ChannelInboundInvoker} 接口中方法的定义
+     * 在此提供了默认实现：方法名称fireXXX
+     * */
     @Override
     public ChannelHandlerContext fireChannelRegistered() {
         invokeChannelRegistered(findContextInbound(MASK_CHANNEL_REGISTERED));
@@ -416,6 +438,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         invokeChannelWritabilityChanged(findContextInbound(MASK_CHANNEL_WRITABILITY_CHANGED));
         return this;
     }
+    /**
+     * {@link ChannelInboundInvoker} 接口中方法的默认实现结束
+     * */
 
     static void invokeChannelWritabilityChanged(final AbstractChannelHandlerContext next) {
         EventExecutor executor = next.executor();
@@ -442,6 +467,11 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         }
     }
 
+    /**
+     * AbstractChannelHandlerContext基类中，定义了每一个出站操作的默认实现。
+     * {@link ChannelOutboundInvoker} 出站操作方法的定义
+     * -----------------出站操作开始------------------
+     **/
     @Override
     public ChannelFuture bind(SocketAddress localAddress) {
         return bind(localAddress, newPromise());
@@ -695,9 +725,26 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelFuture write(Object msg) {
-        return write(msg, newPromise());
+    /**
+     * 创建{@link ChannelPromise} 实现了接口{@link ChannelFuture}，添加一个回调Promise,包装channel和executor
+     * 因为Netty的write出站操作，并不一定是一调用write就立即执行，更多的时候是异步执行的。write返回的是这个ChannelPromise
+     * 对象，是专门提供给业务程序，用来干预异步操作的过程。
+     *
+     * 可以通过ChannelPromise 实例，监听异步处理的是否结束，完成write出站正真执行后的一些业务处理，比如，统计出站操作执行的时间等等。
+     *
+     * ChannelPromise 接口，继承了 Netty 的Future的接口，使用了Future/Promise
+     * 模式。这个是一种异步处理干预的经典的模式。
+     *
+     *
+     */
+    return write(msg, newPromise());
     }
 
+    /**
+     * 简单的直接调用第三个write，调用前设置flush 参数的值为false。flush 参数，
+     * 表示是否要将缓冲区ByteBuf中的数据，立即写入Java IO Channel底层套接字，发送出去。
+     * 一般情况下，第二个write设置了false，表示不立即发出，尽量减少底层的发送，提升性能。
+     **/
     @Override
     public ChannelFuture write(final Object msg, final ChannelPromise promise) {
         write(msg, false, promise);
@@ -706,6 +753,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     }
 
     private void invokeWrite(Object msg, ChannelPromise promise) {
+        //判断handler的状态是可以执行回调函数的
         if (invokeHandler()) {
             invokeWrite0(msg, promise);
         } else {
@@ -715,6 +763,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     private void invokeWrite0(Object msg, ChannelPromise promise) {
         try {
+            //执行回调函数write
             ((ChannelOutboundHandler) handler()).write(this, msg, promise);
         } catch (Throwable t) {
             notifyOutboundHandlerException(t, promise);
@@ -769,6 +818,10 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         }
     }
 
+    /**
+     * 1.findContextOutbound 方法找到下一个出站Context。
+     * 2.ChannelOutboundHandlerContext 判断是否需要flush，选择执行write回调方法之后是否执行flush回调方法
+     **/
     private void write(Object msg, boolean flush, ChannelPromise promise) {
         ObjectUtil.checkNotNull(msg, "msg");
         try {
@@ -782,14 +835,18 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             throw e;
         }
 
+        //查找下一个ChannelOutboundHandlerContext
         final AbstractChannelHandlerContext next = findContextOutbound(flush ?
                 (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
         final Object m = pipeline.touch(msg, next);
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
+            //判断是否刷新
             if (flush) {
+                //执行下一棒的写并刷新方法
                 next.invokeWriteAndFlush(m, promise);
             } else {
+                //执行下一棒的写方法
                 next.invokeWrite(m, promise);
             }
         } else {
@@ -813,6 +870,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     public ChannelFuture writeAndFlush(Object msg) {
         return writeAndFlush(msg, newPromise());
     }
+    /**-----------------出站操作结束-----------------*/
 
     private static void notifyOutboundHandlerException(Throwable cause, ChannelPromise promise) {
         // Only log if the given promise is not of type VoidChannelPromise as tryFailure(...) is expected to return

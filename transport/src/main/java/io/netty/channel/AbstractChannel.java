@@ -278,6 +278,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return this;
     }
 
+    /**
+     * Channel接口继承了{@link ChannelOutboundInvoker}接口，其中write方法的默认基础实现
+     **/
     @Override
     public ChannelFuture write(Object msg) {
         return pipeline.write(msg);

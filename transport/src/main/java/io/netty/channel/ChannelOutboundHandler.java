@@ -18,6 +18,7 @@ package io.netty.channel;
 import java.net.SocketAddress;
 
 /**
+ * 所有出站操作的方法声明，会收到IO出站操作的通知。
  * {@link ChannelHandler} which will get notified for IO-outbound-operations.
  */
 public interface ChannelOutboundHandler extends ChannelHandler {
@@ -73,6 +74,7 @@ public interface ChannelOutboundHandler extends ChannelHandler {
 
     /**
      * Intercepts {@link ChannelHandlerContext#read()}.
+     * 拦截ctx.read()方法
      */
     void read(ChannelHandlerContext ctx) throws Exception;
 

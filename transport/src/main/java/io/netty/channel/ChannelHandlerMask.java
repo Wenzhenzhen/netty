@@ -32,6 +32,9 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+/**
+ * 参考：https://blog.csdn.net/qq_41737716/article/details/94734196
+ **/
 final class ChannelHandlerMask {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelHandlerMask.class);
 
@@ -70,12 +73,15 @@ final class ChannelHandlerMask {
 
     /**
      * Return the {@code executionMask}.
+     * 计算
      */
     static int mask(Class<? extends ChannelHandler> clazz) {
         // Try to obtain the mask from the cache first. If this fails calculate it and put it in the cache for fast
         // lookup in the future.
+        //缓存
         Map<Class<? extends ChannelHandler>, Integer> cache = MASKS.get();
         Integer mask = cache.get(clazz);
+        //计算
         if (mask == null) {
             mask = mask0(clazz);
             cache.put(clazz, mask);
@@ -85,16 +91,25 @@ final class ChannelHandlerMask {
 
     /**
      * Calculate the {@code executionMask}.
+     * 到这里我们明白了，首先是具体到Inbound、Outbound纬度来添加事件，
+     * 然后再在事件的维度一个个去删除不关心的事件，而判断是否不关心，依赖于方法上是否有@Skip注解。
      */
     private static int mask0(Class<? extends ChannelHandler> handlerType) {
+        //mask=1
         int mask = MASK_EXCEPTION_CAUGHT;
         try {
+            // instanceof 判断是否是Inbound类型
             if (ChannelInboundHandler.class.isAssignableFrom(handlerType)) {
+                // 或上 MASK_ALL_INBOUND，添加所有inbound关心的事件位
                 mask |= MASK_ALL_INBOUND;
 
+                // 是否需要跳过
                 if (isSkippable(handlerType, "channelRegistered", ChannelHandlerContext.class)) {
+                    // 表示此Handler并不关心此事件，将对应位上的数字变为相反，即1->0
+                    // 这里registered事件为二进制第二位为1，则跳过的话，将第二位变为0
                     mask &= ~MASK_CHANNEL_REGISTERED;
                 }
+                //以下均是判断是否跳过
                 if (isSkippable(handlerType, "channelUnregistered", ChannelHandlerContext.class)) {
                     mask &= ~MASK_CHANNEL_UNREGISTERED;
                 }
@@ -118,6 +133,7 @@ final class ChannelHandlerMask {
                 }
             }
 
+            // Outbound类型的处理
             if (ChannelOutboundHandler.class.isAssignableFrom(handlerType)) {
                 mask |= MASK_ALL_OUTBOUND;
 
@@ -150,7 +166,9 @@ final class ChannelHandlerMask {
                 }
             }
 
+            // 无关Inbound和Outbound，都可以关心的事件
             if (isSkippable(handlerType, "exceptionCaught", ChannelHandlerContext.class, Throwable.class)) {
+                // 若需要跳过，改变位
                 mask &= ~MASK_EXCEPTION_CAUGHT;
             }
         } catch (Exception e) {
@@ -161,6 +179,9 @@ final class ChannelHandlerMask {
         return mask;
     }
 
+    /**
+     * 那么是如何判断可以被跳过的呢？
+     **/
     @SuppressWarnings("rawtypes")
     private static boolean isSkippable(
             final Class<?> handlerType, final String methodName, final Class<?>... paramTypes) throws Exception {
@@ -169,12 +190,15 @@ final class ChannelHandlerMask {
             public Boolean run() throws Exception {
                 Method m;
                 try {
+                    // 反射获取该事件的方法对象
                     m = handlerType.getMethod(methodName, paramTypes);
                 } catch (NoSuchMethodException e) {
                     logger.debug(
                         "Class {} missing method {}, assume we can not skip execution", handlerType, methodName, e);
+                    // 没有该方法，直接跳过
                     return false;
                 }
+                // 如果有该方法，查看是否被打上了@Skip注解
                 return m != null && m.isAnnotationPresent(Skip.class);
             }
         });

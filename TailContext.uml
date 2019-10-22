@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>JAVA</ID>
+  <OriginalElement>io.netty.channel.DefaultChannelPipeline.TailContext</OriginalElement>
+  <nodes>
+    <node x="69.75" y="0.0">io.netty.util.AttributeMap</node>
+    <node x="567.3833333333333" y="160.0">io.netty.channel.ChannelInboundHandler</node>
+    <node x="602.6875" y="250.0">io.netty.channel.DefaultChannelPipeline.HeadContext</node>
+    <node x="431.75" y="0.0">io.netty.channel.ChannelInboundInvoker</node>
+    <node x="776.3833333333333" y="160.0">io.netty.channel.ChannelHandler.Sharable</node>
+    <node x="0.0" y="80.0">io.netty.util.ResourceLeakHint</node>
+    <node x="172.0" y="80.0">io.netty.channel.ChannelHandlerContext</node>
+    <node x="214.75" y="0.0">io.netty.channel.ChannelOutboundInvoker</node>
+    <node x="465.5" y="250.0">io.netty.channel.DefaultChannelPipeline.TailContext</node>
+    <node x="74.88333333333333" y="160.0">io.netty.channel.AbstractChannelHandlerContext</node>
+    <node x="738.1388888888889" y="80.0">io.netty.channel.ChannelHandler</node>
+    <node x="437.0" y="80.0">io.netty.channel.DefaultChannelPipeline</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="io.netty.channel.DefaultChannelPipeline.HeadContext" target="io.netty.channel.ChannelHandler">
+      <point x="46.125" y="-15.0" />
+      <point x="710.3125" y="230.0" />
+      <point x="885.8833333333333" y="230.0" />
+      <point x="885.8833333333333" y="135.0" />
+      <point x="854.8055555555555" y="135.0" />
+      <point x="46.66666666666663" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.AbstractChannelHandlerContext" target="io.netty.channel.ChannelHandlerContext">
+      <point x="58.0" y="-15.0" />
+      <point x="248.88333333333333" y="135.0" />
+      <point x="264.0" y="135.0" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.AbstractChannelHandlerContext" target="io.netty.util.ResourceLeakHint">
+      <point x="-58.0" y="-15.0" />
+      <point x="132.88333333333333" y="135.0" />
+      <point x="76.0" y="135.0" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.HeadContext" target="io.netty.channel.AbstractChannelHandlerContext">
+      <point x="-46.125" y="-15.0" />
+      <point x="618.0625" y="220.0" />
+      <point x="248.88333333333333" y="220.0" />
+      <point x="58.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.TailContext" target="io.netty.channel.AbstractChannelHandlerContext">
+      <point x="-37.33333333333337" y="-15.0" />
+      <point x="484.16666666666663" y="230.0" />
+      <point x="132.88333333333333" y="230.0" />
+      <point x="-58.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.ChannelHandlerContext" target="io.netty.util.AttributeMap">
+      <point x="-61.33333333333334" y="-15.0" />
+      <point x="202.66666666666663" y="60.0" />
+      <point x="132.25" y="60.0" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.ChannelInboundHandler" target="io.netty.channel.ChannelHandler">
+      <point x="0.0" y="-15.0" />
+      <point x="661.8833333333333" y="135.0" />
+      <point x="761.4722222222223" y="135.0" />
+      <point x="-46.66666666666663" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.ChannelHandlerContext" target="io.netty.channel.ChannelInboundInvoker">
+      <point x="61.333333333333314" y="-15.0" />
+      <point x="325.3333333333333" y="60.0" />
+      <point x="478.5" y="60.0" />
+      <point x="-46.75" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline" target="io.netty.channel.ChannelOutboundInvoker">
+      <point x="-45.0" y="-15.0" />
+      <point x="482.0" y="50.0" />
+      <point x="362.5" y="50.0" />
+      <point x="49.25" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.HeadContext" target="io.netty.channel.ChannelInboundHandler">
+      <point x="15.375" y="-15.0" />
+      <point x="679.5625" y="220.0" />
+      <point x="709.1333333333333" y="220.0" />
+      <point x="47.25" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.TailContext" target="io.netty.channel.ChannelInboundHandler">
+      <point x="37.33333333333337" y="-15.0" />
+      <point x="558.8333333333334" y="230.0" />
+      <point x="614.6333333333333" y="230.0" />
+      <point x="-47.25" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.ChannelHandlerContext" target="io.netty.channel.ChannelOutboundInvoker">
+      <point x="0.0" y="-15.0" />
+      <point x="-49.25" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline" target="io.netty.channel.ChannelInboundInvoker">
+      <point x="45.0" y="-15.0" />
+      <point x="46.75" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.ChannelHandler.Sharable" target="io.netty.channel.ChannelHandler">
+      <point x="0.0" y="-15.0" />
+      <point x="825.8833333333333" y="135.0" />
+      <point x="808.1388888888889" y="135.0" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.HeadContext" target="io.netty.channel.DefaultChannelPipeline">
+      <point x="-15.375" y="-15.0" />
+      <point x="648.8125" y="210.0" />
+      <point x="556.8833333333333" y="210.0" />
+      <point x="556.8833333333333" y="135.0" />
+      <point x="572.0" y="135.0" />
+      <point x="45.0" y="15.0" />
+    </edge>
+    <edge source="io.netty.channel.DefaultChannelPipeline.TailContext" target="io.netty.channel.DefaultChannelPipeline">
+      <point x="0.0" y="-15.0" />
+      <point x="521.5" y="230.0" />
+      <point x="528.1388888888889" y="230.0" />
+      <point x="528.1388888888889" y="135.0" />
+      <point x="482.0" y="135.0" />
+      <point x="-45.0" y="15.0" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic Group" zoom="1.0" x="519.0" y="148.0" />
+  <SelectedNodes>
+    <node>io.netty.channel.ChannelInboundHandler</node>
+  </SelectedNodes>
+  <Categories>
+    <Category>Inner Classes</Category>
+  </Categories>
+  <SCOPE>All</SCOPE>
+  <VISIBILITY>private</VISIBILITY>
+</Diagram>
+

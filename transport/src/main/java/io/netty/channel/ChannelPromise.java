@@ -37,6 +37,9 @@ public interface ChannelPromise extends ChannelFuture, Promise<Void> {
     @Override
     ChannelPromise setFailure(Throwable cause);
 
+    /**
+     * 观察者模式
+     **/
     @Override
     ChannelPromise addListener(GenericFutureListener<? extends Future<? super Void>> listener);
 

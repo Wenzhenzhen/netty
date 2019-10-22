@@ -200,12 +200,13 @@ public interface ChannelOutboundInvoker {
      */
     ChannelOutboundInvoker read();
 
-    /**
-     * Request to write a message via this {@link ChannelHandlerContext} through the {@link ChannelPipeline}.
-     * This method will not request to actual flush, so be sure to call {@link #flush()}
-     * once you want to request to flush all pending data to the actual transport.
-     */
-    ChannelFuture write(Object msg);
+  /**
+   * 请求通过此{@link ChannelHandlerContext}通过{@link ChannelPipeline}写入消息。
+   * 此方法不会请求实际刷新，因此请确保调用{@link #flush()} ,当您想要请求将所有挂起的数据刷新到实际传输。
+   *
+   * 此方法的基础实现在{@link AbstractChannel#write(Object)}
+   */
+  ChannelFuture write(Object msg);
 
     /**
      * Request to write a message via this {@link ChannelHandlerContext} through the {@link ChannelPipeline}.

@@ -153,6 +153,10 @@ public interface ChannelHandlerContext extends AttributeMap, ChannelInboundInvok
      */
     boolean isRemoved();
 
+    /**
+     * 重写{@link ChannelInboundInvoker} 接口中方法的定义
+     * 未修改，仅是将原方法定义搬过来
+     * */
     @Override
     ChannelHandlerContext fireChannelRegistered();
 
@@ -179,6 +183,9 @@ public interface ChannelHandlerContext extends AttributeMap, ChannelInboundInvok
 
     @Override
     ChannelHandlerContext fireChannelWritabilityChanged();
+    /**
+     * 重写{@link ChannelInboundInvoker} 接口中方法的定义结束
+     * */
 
     @Override
     ChannelHandlerContext read();
